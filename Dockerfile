@@ -7,7 +7,7 @@ WORKDIR /app
 COPY source_code/package*.json ./
 
 # Install ALL deps (including dev) for potential build steps
-RUN npm ci
+RUN npm install
 
 # Copy source
 COPY source_code/src ./src
@@ -22,7 +22,7 @@ WORKDIR /app
 
 # Install only production deps in clean layer
 COPY source_code/package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm install --omit=dev && npm cache clean --force
 
 # Copy compiled source from builder
 COPY --from=builder /app/src ./src

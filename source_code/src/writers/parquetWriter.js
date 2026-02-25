@@ -1,6 +1,6 @@
 'use strict';
 
-const parquet = require('parquetjs-lite');
+const parquet = require('@dsnp/parquetjs');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
