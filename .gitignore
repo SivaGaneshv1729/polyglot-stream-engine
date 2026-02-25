@@ -1,0 +1,13 @@
+node_modules/
+.env
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+/tmp/
+*.parquet
+*.csv
+*.json.gz
+*.xml.gz
+coverage/
+.nyc_output/
