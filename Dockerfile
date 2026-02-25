@@ -6,8 +6,8 @@ WORKDIR /app
 # Copy package files first for layer caching
 COPY source_code/package*.json ./
 
-# Install ALL deps (including dev) for potential build steps
-RUN npm install
+# Install ALL deps (devDeps needed for nothing here but kept for extensibility)
+RUN npm install --omit=dev
 
 # Copy source
 COPY source_code/src ./src
@@ -20,15 +20,13 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 WORKDIR /app
 
-# Install only production deps in clean layer
-COPY source_code/package*.json ./
-RUN npm install --omit=dev && npm cache clean --force
-
-# Copy compiled source from builder
+# Copy production node_modules from builder (no second npm install needed)
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/src ./src
 
-# Temp directory for Parquet buffering
-RUN mkdir -p /tmp/parquet-export && chown appuser:appgroup /tmp/parquet-export
+# Temp directory for Parquet buffering (must be writable by appuser)
+RUN mkdir -p /tmp/parquet-export && chown -R appuser:appgroup /tmp/parquet-export
 
 USER appuser
 
