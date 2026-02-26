@@ -1,11 +1,11 @@
-version: '3.8'
+version: "3.8"
 
 services:
   app:
     build: .
     container_name: polyglot-export-app
     ports:
-      - "${PORT:-8080}:8080"
+      - "8081:8080"
     depends_on:
       db:
         condition: service_healthy
@@ -32,7 +32,11 @@ services:
       - ./seeds/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
       - pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-exports_db}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-exports_db}",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
