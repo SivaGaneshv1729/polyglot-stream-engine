@@ -6,28 +6,7 @@ A high-performance, memory-efficient data export engine that streams a **10-mill
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                     HTTP Client                         │
-└────────────────────┬────────────────────────────────────┘
-                     │
-              POST /exports          GET /exports/:id/download
-                     │                        │
-┌────────────────────▼────────────────────────▼───────────┐
-│               Express API (Node.js)                     │
-│  ┌──────────┐  ┌────────────────────────────────────┐   │
-│  │ Job Store│  │         Writer Factory              │   │
-│  │  (Map)   │  │  CSV │ JSON │  XML │ Parquet       │   │
-│  └──────────┘  └──────────────┬─────────────────────┘   │
-└─────────────────────────────  │  ───────────────────────┘
-                                │ pg-cursor (batched reads)
-┌─────────────────────────────  │ ───────────────────────┐
-│           PostgreSQL 13       │                         │
-│   public.records (10M rows)   │                         │
-└───────────────────────────────┘                         │
-```
-
-**Key design principle**: Data flows through the system as a pipeline — never materialised in full. The pg-cursor reads rows in configurable batches (default 500), each batch is immediately serialised and written to the HTTP response stream.
+For a detailed explanation of the streaming pipeline, memory constraints, and format-specific implementations, please see the [Architecture Overview](docs/ARCHITECTURE.md).
 
 ---
 
@@ -35,6 +14,9 @@ A high-performance, memory-efficient data export engine that streams a **10-mill
 
 ```
 polyglot-export-engine/
+├── docs/                        # Project documentation
+│   ├── API_DOCS.md              # Detailed API endpoint reference
+│   └── ARCHITECTURE.md          # Architecture & data flow diagrams
 ├── Dockerfile                   # Multi-stage production image
 ├── docker-compose.yml           # App + DB with health checks
 ├── .env.example                 # Environment variable template
@@ -94,111 +76,9 @@ docker-compose exec db psql -U user -d exports_db -c "SELECT COUNT(*) FROM recor
 
 ## API Reference
 
-### `POST /exports` — Create export job
+The engine exposes endpoints to create export jobs, stream downloads, and check system health.
 
-**Request body:**
-
-```json
-{
-  "format": "csv",
-  "columns": [
-    { "source": "id", "target": "ID" },
-    { "source": "name", "target": "Name" },
-    { "source": "value", "target": "Value" },
-    { "source": "metadata", "target": "Metadata" },
-    { "source": "created_at", "target": "CreatedAt" }
-  ],
-  "compression": "gzip"
-}
-```
-
-| Field         | Required | Values                          |
-| ------------- | -------- | ------------------------------- |
-| `format`      | ✅       | `csv`, `json`, `xml`, `parquet` |
-| `columns`     | ✅       | Array of `{source, target}`     |
-| `compression` | ❌       | `gzip` (CSV/JSON/XML only)      |
-
-**Response `201`:**
-
-```json
-{ "exportId": "550e8400-e29b-41d4-a716-446655440000", "status": "pending" }
-```
-
----
-
-### `GET /exports/{exportId}/download` — Stream export
-
-Streams the export in the format specified when the job was created.
-
-| Format  | Content-Type                     | Notes                                                                |
-| ------- | -------------------------------- | -------------------------------------------------------------------- |
-| CSV     | `text/csv`                       | JSONB columns serialised as JSON strings                             |
-| JSON    | `application/json`               | Single array `[{...}, ...]`                                          |
-| XML     | `application/xml`                | `<records><record>…</record></records>`, nested JSONB → XML elements |
-| Parquet | `application/vnd.apache.parquet` | Snappy-compressed, JSONB as UTF8                                     |
-
-When `compression: gzip` was requested: `Content-Encoding: gzip` is set.
-
-**Example:**
-
-```bash
-# 1. Create job
-EXPORT_ID=$(curl -s -X POST http://localhost:8080/exports \
-  -H "Content-Type: application/json" \
-  -d '{"format":"csv","columns":[{"source":"id","target":"ID"},{"source":"name","target":"Name"},{"source":"value","target":"Value"},{"source":"metadata","target":"Metadata"}]}' \
-  | jq -r '.exportId')
-
-# 2. Stream download
-curl -o export.csv http://localhost:8080/exports/$EXPORT_ID/download
-```
-
----
-
-### `GET /exports/benchmark` — Performance benchmark
-
-Exports all 10M rows to all 4 formats and returns timing/size/memory metrics.
-
-> ⚠️ This endpoint runs a **long-running operation** (minutes). Do not call in production.
-
-**Response `200`:**
-
-```json
-{
-  "datasetRowCount": 10000000,
-  "results": [
-    {
-      "format": "csv",
-      "durationSeconds": 42.1,
-      "fileSizeBytes": 780000000,
-      "peakMemoryMB": 48.2
-    },
-    {
-      "format": "json",
-      "durationSeconds": 58.3,
-      "fileSizeBytes": 1200000000,
-      "peakMemoryMB": 52.1
-    },
-    {
-      "format": "xml",
-      "durationSeconds": 94.7,
-      "fileSizeBytes": 3100000000,
-      "peakMemoryMB": 55.8
-    },
-    {
-      "format": "parquet",
-      "durationSeconds": 38.5,
-      "fileSizeBytes": 310000000,
-      "peakMemoryMB": 60.4
-    }
-  ]
-}
-```
-
-### `GET /health` — Health check
-
-```json
-{ "status": "ok", "timestamp": "2026-02-25T11:00:00.000Z" }
-```
+For complete request/response schemas, usage examples, and benchmark details, refer to the [API Documentation](docs/API_DOCS.md).
 
 ---
 
