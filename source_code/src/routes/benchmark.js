@@ -52,7 +52,6 @@ async function runBenchmark(format) {
     // This lets us reuse the exact same writer implementations
     const mockRes = Object.assign(fileWriteStream, {
       headersSent: false,
-      writableEnded: false,
       setHeader: () => {},
     });
 
